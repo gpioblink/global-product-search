@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from global_product_search.extractors.base import BaseExtractor
 from global_product_search.engine import ExtractorWeightRule, SearchEngine, search
 from global_product_search.models import ProductCandidate
@@ -149,6 +151,7 @@ def test_engine_includes_multiple_sources_when_scores_are_high(monkeypatch) -> N
 def test_engine_applies_regex_weight_rules(monkeypatch) -> None:
     class GeneralExtractor(BaseExtractor):
         name = "general"
+        flags = ("kind:barcode",)
 
         def supports(self, query):
             return 80
@@ -164,6 +167,7 @@ def test_engine_applies_regex_weight_rules(monkeypatch) -> None:
 
     class BookExtractor(BaseExtractor):
         name = "books"
+        flags = ("kind:barcode", "product:book")
 
         def supports(self, query):
             return 70
@@ -185,7 +189,7 @@ def test_engine_applies_regex_weight_rules(monkeypatch) -> None:
         weight_rules=[
             ExtractorWeightRule(
                 name="prefer_book_sources_for_isbn",
-                extractor_pattern=r"^books$",
+                extractor_flag_pattern=r"^product:book$",
                 query_pattern=r"(?m)^isbn:(10|13)$",
                 weight=20.0,
             )
@@ -241,3 +245,29 @@ def test_engine_defaults_to_general_store_genre(monkeypatch) -> None:
 
     assert len(results) == 1
     assert results[0].source == "store"
+
+
+def test_engine_logs_extractor_priority_breakdown_in_debug_mode(monkeypatch, caplog) -> None:
+    class StoreExtractor(BaseExtractor):
+        name = "store"
+        genres = ("generic",)
+        flags = ("kind:keyword", "domain:general-store")
+
+        def supports(self, query):
+            return 80
+
+        def search(self, query, ctx):
+            return []
+
+    monkeypatch.setattr(
+        "global_product_search.engine.discover_extractors",
+        lambda: [StoreExtractor()],
+    )
+    caplog.set_level(logging.DEBUG)
+    engine = SearchEngine(debug=True)
+
+    engine.search_text("Nintendo Switch", limit=5)
+
+    assert "[engine] extractor=store" in caplog.text
+    assert "base=80.0" in caplog.text
+    assert "prefer_keyword_capable_extractors_for_keyword_queries:+15.0" in caplog.text

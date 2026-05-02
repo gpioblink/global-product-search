@@ -18,7 +18,7 @@ def test_cli_lists_extractors(monkeypatch) -> None:
             SimpleNamespace(
                 name="example",
                 genres=("generic", "books-general"),
-                flags=("keyword", "barcode"),
+                flags=("kind:keyword", "kind:barcode"),
             )
         ],
     )
@@ -28,7 +28,7 @@ def test_cli_lists_extractors(monkeypatch) -> None:
     assert result.exit_code == 0
     assert "example" in result.stdout
     assert "categories: generic, books-general" in result.stdout
-    assert "flags: keyword, barcode" in result.stdout
+    assert "flags: kind:keyword, kind:barcode" in result.stdout
 
 
 def test_cli_search_json(monkeypatch) -> None:

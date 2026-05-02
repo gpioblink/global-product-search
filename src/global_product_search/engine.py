@@ -5,6 +5,7 @@ import logging
 import re
 
 from .context import SearchContext
+from .extractors.base import Extractor
 from .loader import discover_extractors
 from .models import ProductCandidate, SearchQuery
 from .query import normalize_query
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True, slots=True)
 class ExtractorWeightRule:
     name: str
-    extractor_pattern: str
+    extractor_flag_pattern: str
     query_pattern: str
     weight: float
 
@@ -29,38 +30,62 @@ class ExtractorInfo:
 
 DEFAULT_WEIGHT_RULES = [
     ExtractorWeightRule(
-        name="prefer_japanese_marketplaces_for_japanese_barcodes",
-        extractor_pattern=r"^rakuten$",
+        name="prefer_barcode_capable_extractors_for_barcode_queries",
+        extractor_flag_pattern=r"^kind:barcode$",
+        query_pattern=r"(?m)^kind:barcode$",
+        weight=25.0,
+    ),
+    ExtractorWeightRule(
+        name="prefer_model_capable_extractors_for_model_queries",
+        extractor_flag_pattern=r"^kind:model$",
+        query_pattern=r"(?m)^kind:model$",
+        weight=20.0,
+    ),
+    ExtractorWeightRule(
+        name="prefer_keyword_capable_extractors_for_keyword_queries",
+        extractor_flag_pattern=r"^kind:keyword$",
+        query_pattern=r"(?m)^kind:keyword$",
+        weight=15.0,
+    ),
+    ExtractorWeightRule(
+        name="prefer_japanese_sources_for_japanese_barcodes",
+        extractor_flag_pattern=r"^region:japan$",
         query_pattern=r"(?m)^barcode:country:japan$",
         weight=20.0,
     ),
     ExtractorWeightRule(
-        name="deprioritize_rakuten_for_non_japanese_barcodes",
-        extractor_pattern=r"^rakuten$",
+        name="deprioritize_japanese_sources_for_non_japanese_barcodes",
+        extractor_flag_pattern=r"^region:japan$",
         query_pattern=r"(?m)^barcode:country:non-japan$",
         weight=-10.0,
     ),
     ExtractorWeightRule(
         name="prefer_general_store_sources_when_requested",
-        extractor_pattern=r"^rakuten$",
+        extractor_flag_pattern=r"^domain:general-store$",
         query_pattern=r"(?m)^genre:generic$",
         weight=25.0,
     ),
     ExtractorWeightRule(
         name="prefer_general_book_sources_when_requested",
-        extractor_pattern=r"^rakuten$",
+        extractor_flag_pattern=r"^domain:books-general$",
         query_pattern=r"(?m)^genre:books-general$",
         weight=15.0,
     ),
     ExtractorWeightRule(
         name="prefer_doujin_technical_book_sources_when_requested",
-        extractor_pattern=r"^techbookfest$",
+        extractor_flag_pattern=r"^domain:books-doujin-technical$",
         query_pattern=r"(?m)^genre:books-doujin-technical$",
         weight=25.0,
     ),
     ExtractorWeightRule(
+        name="prefer_book_sources_for_book_queries",
+        extractor_flag_pattern=r"^product:book$",
+        query_pattern=r"(?m)^(isbn:(10|13)|product:book)$",
+        weight=20.0,
+    ),
+    ExtractorWeightRule(
         name="deprioritize_general_store_for_doujin_technical_book_queries",
-        extractor_pattern=r"^rakuten$",
+        extractor_flag_pattern=r"^domain:general-store$",
         query_pattern=r"(?m)^genre:books-doujin-technical$",
         weight=-5.0,
     ),
@@ -113,25 +138,31 @@ class SearchEngine:
             ]
         )
         # Ask every extractor how relevant it is for this query, then try the
-        # highest-confidence ones first, including regex-based source boosts for
-        # query traits such as ISBNs or regional barcode prefixes.
-        selected = sorted(
-            (
-                (
-                    extractor.supports(query)
-                    + sum(
-                        rule.weight
-                        for rule in self.weight_rules
-                        if re.search(rule.extractor_pattern, extractor.name)
-                        and re.search(rule.query_pattern, query_context)
-                    ),
-                    extractor,
+        # highest-confidence ones first, including regex-based boosts derived
+        # from extractor flags such as kind, region, and product domain.
+        selected: list[tuple[float, Extractor]] = []
+        for extractor in available:
+            base_score = extractor.supports(query)
+            matched_rules = [
+                rule
+                for rule in self.weight_rules
+                if re.search(rule.query_pattern, query_context)
+                and any(
+                    re.search(rule.extractor_flag_pattern, flag)
+                    for flag in getattr(extractor, "flags", ())
                 )
-                for extractor in available
-            ),
-            key=lambda item: item[0],
-            reverse=True,
-        )
+            ]
+            total_score = base_score + sum(rule.weight for rule in matched_rules)
+            selected.append((total_score, extractor))
+            if ctx.debug:
+                logger.debug(
+                    "[engine] extractor=%s base=%.1f weights=%s total=%.1f",
+                    extractor.name,
+                    float(base_score),
+                    ", ".join(f"{rule.name}:{rule.weight:+.1f}" for rule in matched_rules) or "-",
+                    float(total_score),
+                )
+        selected.sort(key=lambda item: item[0], reverse=True)
 
         results: list[ProductCandidate] = []
         failures: list[RuntimeError] = []

@@ -15,8 +15,14 @@ logger = logging.getLogger(__name__)
 
 class TechbookfestExtractor(BaseExtractor):
     name = "techbookfest"
-    genres = ("books-doujin-technical",)
-    flags = ("keyword", "doujin", "technical-book", "marketplace")
+    genres = ("techbook",)
+    flags = (
+        "kind:keyword",
+        "region:japan",
+        "domain:books-doujin-technical",
+        "product:book",
+        "channel:marketplace",
+    )
     app_version = "20260429a-web"
     site_origin = "https://techbookfest.org"
     graphql_endpoint = "https://techbookfest.org/api/graphql"
