@@ -11,6 +11,7 @@ class SearchQuery(BaseModel):
     raw: str
     kind: QueryKind
     normalized: list[str] = Field(default_factory=list)
+    signals: list[str] = Field(default_factory=list)
 
 
 class ProductCandidate(BaseModel):

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
+import re
 
 from .context import SearchContext
 from .loader import discover_extractors
@@ -10,13 +12,47 @@ from .query import normalize_query
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True, slots=True)
+class ExtractorWeightRule:
+    name: str
+    extractor_pattern: str
+    query_pattern: str
+    weight: float
+
+
+DEFAULT_WEIGHT_RULES = [
+    ExtractorWeightRule(
+        name="prefer_japanese_marketplaces_for_japanese_barcodes",
+        extractor_pattern=r"^rakuten$",
+        query_pattern=r"(?m)^barcode:country:japan$",
+        weight=20.0,
+    ),
+    ExtractorWeightRule(
+        name="deprioritize_rakuten_for_non_japanese_barcodes",
+        extractor_pattern=r"^rakuten$",
+        query_pattern=r"(?m)^barcode:country:non-japan$",
+        weight=-10.0,
+    ),
+    ExtractorWeightRule(
+        name="prefer_book_focused_sources_for_isbn",
+        extractor_pattern=r"^techbookfest$",
+        query_pattern=r"(?m)^isbn:(10|13)$",
+        weight=25.0,
+    ),
+]
+
+
 class SearchEngine:
     def __init__(
         self,
         *,
         debug: bool = False,
+        weight_rules: list[ExtractorWeightRule] | None = None,
+        multi_source_score_threshold: float = 100.0,
     ) -> None:
         self.debug = debug
+        self.weight_rules = weight_rules or DEFAULT_WEIGHT_RULES
+        self.multi_source_score_threshold = multi_source_score_threshold
 
     def list_extractors(self) -> list[str]:
         return [extractor.name for extractor in discover_extractors()]
@@ -28,10 +64,31 @@ class SearchEngine:
     def search_query(self, query: SearchQuery, *, limit: int = 10) -> list[ProductCandidate]:
         ctx = SearchContext.from_env(limit=limit, debug=self.debug)
         available = discover_extractors()
+        query_context = "\n".join(
+            [
+                f"raw:{query.raw}",
+                f"kind:{query.kind}",
+                *[f"normalized:{normalized}" for normalized in query.normalized],
+                *query.signals,
+            ]
+        )
         # Ask every extractor how relevant it is for this query, then try the
-        # highest-confidence ones first.
+        # highest-confidence ones first, including regex-based source boosts for
+        # query traits such as ISBNs or regional barcode prefixes.
         selected = sorted(
-            ((extractor.supports(query), extractor) for extractor in available),
+            (
+                (
+                    extractor.supports(query)
+                    + sum(
+                        rule.weight
+                        for rule in self.weight_rules
+                        if re.search(rule.extractor_pattern, extractor.name)
+                        and re.search(rule.query_pattern, query_context)
+                    ),
+                    extractor,
+                )
+                for extractor in available
+            ),
             key=lambda item: item[0],
             reverse=True,
         )
@@ -98,7 +155,36 @@ class SearchEngine:
 
         deduped_results = list(deduped.values())
         deduped_results.sort(key=lambda candidate: candidate.score, reverse=True)
-        return deduped_results[:limit]
+
+        selected_results: list[ProductCandidate] = []
+        selected_keys: set[str] = set()
+        represented_sources: set[str] = set()
+        for candidate in deduped_results:
+            if candidate.score < self.multi_source_score_threshold:
+                continue
+            if candidate.source in represented_sources:
+                continue
+            candidate_key = candidate.url.strip().casefold() or (
+                f"{candidate.title.strip().casefold()}|{(candidate.shop_name or '').strip().casefold()}"
+            )
+            selected_results.append(candidate)
+            selected_keys.add(candidate_key)
+            represented_sources.add(candidate.source)
+            if len(selected_results) >= limit:
+                return selected_results[:limit]
+
+        for candidate in deduped_results:
+            candidate_key = candidate.url.strip().casefold() or (
+                f"{candidate.title.strip().casefold()}|{(candidate.shop_name or '').strip().casefold()}"
+            )
+            if candidate_key in selected_keys:
+                continue
+            selected_results.append(candidate)
+            selected_keys.add(candidate_key)
+            if len(selected_results) >= limit:
+                break
+
+        return selected_results[:limit]
 
 
 def search(text: str, *, limit: int = 10) -> list[ProductCandidate]:
