@@ -196,3 +196,48 @@ def test_engine_applies_regex_weight_rules(monkeypatch) -> None:
 
     assert len(results) == 2
     assert results[0].source == "books"
+
+
+def test_engine_defaults_to_general_store_genre(monkeypatch) -> None:
+    class StoreExtractor(BaseExtractor):
+        name = "store"
+        genres = ("generic",)
+
+        def supports(self, query):
+            return 80
+
+        def search(self, query, ctx):
+            return [
+                ProductCandidate(
+                    source=self.name,
+                    title="Nintendo Switch Store Result",
+                    url="https://example.com/store",
+                )
+            ]
+
+    class DoujinExtractor(BaseExtractor):
+        name = "doujin"
+        genres = ("books-doujin-technical",)
+
+        def supports(self, query):
+            return 95
+
+        def search(self, query, ctx):
+            return [
+                ProductCandidate(
+                    source=self.name,
+                    title="Nintendo Switch Doujin Result",
+                    url="https://example.com/doujin",
+                )
+            ]
+
+    monkeypatch.setattr(
+        "global_product_search.engine.discover_extractors",
+        lambda: [StoreExtractor(), DoujinExtractor()],
+    )
+    engine = SearchEngine()
+
+    results = engine.search_text("Nintendo Switch", limit=5)
+
+    assert len(results) == 1
+    assert results[0].source == "store"

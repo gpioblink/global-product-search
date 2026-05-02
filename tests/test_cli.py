@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 from typer.testing import CliRunner
 
@@ -12,14 +13,22 @@ runner = CliRunner()
 
 def test_cli_lists_extractors(monkeypatch) -> None:
     monkeypatch.setattr(
-        "global_product_search.cli.SearchEngine.list_extractors",
-        lambda self: ["example"],
+        "global_product_search.cli.SearchEngine.list_extractor_infos",
+        lambda self: [
+            SimpleNamespace(
+                name="example",
+                genres=("generic", "books-general"),
+                flags=("keyword", "barcode"),
+            )
+        ],
     )
 
-    result = runner.invoke(app, ["--list-extractors"])
+    result = runner.invoke(app, ["--list-extractors"], color=True)
 
     assert result.exit_code == 0
     assert "example" in result.stdout
+    assert "categories: generic, books-general" in result.stdout
+    assert "flags: keyword, barcode" in result.stdout
 
 
 def test_cli_search_json(monkeypatch) -> None:

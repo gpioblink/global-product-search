@@ -29,7 +29,13 @@ Extractor self-tests use the real upstream APIs, so `uv run pytest` expects any 
 uv run gps --list-extractors
 uv run gps search "4901234567894"
 uv run gps search "SM-S928B" --json
+uv run gps search "genre:books-doujin-technical 組み込みLinux"
+uv run gps search "genre:generic,books-general Raspberry Pi"
 ```
+
+Genre directives can be placed at the beginning of the query with `genre:` or `genre=`.
+Use the category names exactly as you want the engine to match them, for example `generic`, `books-general`, `books-doujin-technical`, and `electronic-parts`.
+If no genre is specified, the engine defaults to `generic`.
 
 ## Adding extractors
 

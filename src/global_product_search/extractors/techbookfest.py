@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 class TechbookfestExtractor(BaseExtractor):
     name = "techbookfest"
+    genres = ("books-doujin-technical",)
+    flags = ("keyword", "doujin", "technical-book", "marketplace")
     app_version = "20260429a-web"
     site_origin = "https://techbookfest.org"
     graphql_endpoint = "https://techbookfest.org/api/graphql"
@@ -79,9 +81,7 @@ query MarketSearchQuery($query: String!, $orderBy: SearchProductsOrder, $first: 
     def supports(self, query: SearchQuery) -> int:
         if query.kind == "keyword":
             return 95
-        if query.kind == "model":
-            return 35
-        return 5
+        return 0
 
     def search(self, query: SearchQuery, ctx: SearchContext) -> list[ProductCandidate]:
         keyword = query.normalized[0]

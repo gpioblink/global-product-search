@@ -20,6 +20,13 @@ class ExtractorWeightRule:
     weight: float
 
 
+@dataclass(frozen=True, slots=True)
+class ExtractorInfo:
+    name: str
+    genres: tuple[str, ...]
+    flags: tuple[str, ...]
+
+
 DEFAULT_WEIGHT_RULES = [
     ExtractorWeightRule(
         name="prefer_japanese_marketplaces_for_japanese_barcodes",
@@ -34,10 +41,28 @@ DEFAULT_WEIGHT_RULES = [
         weight=-10.0,
     ),
     ExtractorWeightRule(
-        name="prefer_book_focused_sources_for_isbn",
-        extractor_pattern=r"^techbookfest$",
-        query_pattern=r"(?m)^isbn:(10|13)$",
+        name="prefer_general_store_sources_when_requested",
+        extractor_pattern=r"^rakuten$",
+        query_pattern=r"(?m)^genre:generic$",
         weight=25.0,
+    ),
+    ExtractorWeightRule(
+        name="prefer_general_book_sources_when_requested",
+        extractor_pattern=r"^rakuten$",
+        query_pattern=r"(?m)^genre:books-general$",
+        weight=15.0,
+    ),
+    ExtractorWeightRule(
+        name="prefer_doujin_technical_book_sources_when_requested",
+        extractor_pattern=r"^techbookfest$",
+        query_pattern=r"(?m)^genre:books-doujin-technical$",
+        weight=25.0,
+    ),
+    ExtractorWeightRule(
+        name="deprioritize_general_store_for_doujin_technical_book_queries",
+        extractor_pattern=r"^rakuten$",
+        query_pattern=r"(?m)^genre:books-doujin-technical$",
+        weight=-5.0,
     ),
 ]
 
@@ -57,13 +82,28 @@ class SearchEngine:
     def list_extractors(self) -> list[str]:
         return [extractor.name for extractor in discover_extractors()]
 
+    def list_extractor_infos(self) -> list[ExtractorInfo]:
+        return [
+            ExtractorInfo(
+                name=extractor.name,
+                genres=getattr(extractor, "genres", ()),
+                flags=getattr(extractor, "flags", ()),
+            )
+            for extractor in discover_extractors()
+        ]
+
     def search_text(self, text: str, *, limit: int = 10) -> list[ProductCandidate]:
         query = normalize_query(text)
         return self.search_query(query, limit=limit)
 
     def search_query(self, query: SearchQuery, *, limit: int = 10) -> list[ProductCandidate]:
         ctx = SearchContext.from_env(limit=limit, debug=self.debug)
-        available = discover_extractors()
+        requested_genres = set(query.preferred_genres)
+        available = [
+            extractor
+            for extractor in discover_extractors()
+            if not getattr(extractor, "genres", ()) or requested_genres.intersection(extractor.genres)
+        ]
         query_context = "\n".join(
             [
                 f"raw:{query.raw}",

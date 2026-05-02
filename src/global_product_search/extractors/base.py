@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 @runtime_checkable
 class Extractor(Protocol):
     name: str
+    genres: tuple[str, ...]
+    flags: tuple[str, ...]
 
     def supports(self, query: SearchQuery) -> int:
         ...
@@ -39,6 +41,8 @@ class ExtractorSelfTestCase:
 
 class BaseExtractor(ABC):
     name: str
+    genres: tuple[str, ...] = ()
+    flags: tuple[str, ...] = ()
     _TESTS: list[ExtractorSelfTestCase] = []
 
     def download_json(

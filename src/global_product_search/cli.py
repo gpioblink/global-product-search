@@ -25,8 +25,16 @@ def main(
     ctx.obj = engine
 
     if list_extractors:
-        for name in engine.list_extractors():
-            typer.echo(name)
+        for extractor in engine.list_extractor_infos():
+            typer.secho(extractor.name, fg=typer.colors.CYAN, bold=True)
+            typer.secho(
+                f"  categories: {', '.join(extractor.genres) if extractor.genres else '-'}",
+                fg=typer.colors.GREEN,
+            )
+            typer.secho(
+                f"  flags: {', '.join(extractor.flags) if extractor.flags else '-'}",
+                fg=typer.colors.MAGENTA,
+            )
         raise typer.Exit()
 
     if ctx.invoked_subcommand is None:

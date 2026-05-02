@@ -9,6 +9,8 @@ from .base import BaseExtractor, ExtractorSelfTestCase
 
 class RakutenExtractor(BaseExtractor):
     name = "rakuten"
+    genres = ("generic", "books-general")
+    flags = ("barcode", "model", "keyword", "marketplace", "japan")
     endpoint = "https://openapi.rakuten.co.jp/ichibams/api/IchibaItem/Search/20260401"
     _TESTS = [
         ExtractorSelfTestCase(
