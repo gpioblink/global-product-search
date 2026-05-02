@@ -113,6 +113,7 @@ class RakutenExtractor(BaseExtractor):
                     source=self.name,
                     title=str(data.get("itemName") or ""),
                     url=str(data.get("itemUrl") or ""),
+                    description=data.get("itemCaption") if isinstance(data.get("itemCaption"), str) else None,
                     price=price,
                     shop_name=shop_name,
                     image_url=image_url,

@@ -40,6 +40,11 @@ def search(
     text: str,
     limit: int = typer.Option(10, "--limit", min=1, help="Maximum number of results."),
     json_output: bool = typer.Option(False, "--json", help="Emit results as JSON."),
+    show_raw_payload: bool = typer.Option(
+        False,
+        "--show-raw-payload",
+        help="Include raw upstream payloads in human-readable output.",
+    ),
 ) -> None:
     engine = ctx.obj
     assert isinstance(engine, SearchEngine)
@@ -71,6 +76,7 @@ def search(
             fg=typer.colors.GREEN,
         )
         typer.secho(f"  shop: {candidate.shop_name or '-'}", fg=typer.colors.GREEN)
+        typer.secho(f"  description: {candidate.description or '-'}", fg=typer.colors.WHITE)
         typer.secho(f"  image_url: {candidate.image_url or '-'}", fg=typer.colors.MAGENTA)
         typer.secho(f"  brand: {candidate.brand or '-'}", fg=typer.colors.MAGENTA)
         typer.secho(f"  model: {candidate.model or '-'}", fg=typer.colors.MAGENTA)
@@ -80,13 +86,14 @@ def search(
         )
         typer.secho(f"  url: {candidate.url}", fg=typer.colors.BLUE)
         typer.secho(f"  score: {candidate.score:.1f}", fg=typer.colors.YELLOW)
-        typer.secho("  raw_payload:", fg=typer.colors.WHITE, bold=True)
-        typer.echo(
-            json.dumps(
-                candidate.raw_payload,
-                ensure_ascii=False,
-                indent=2,
-                sort_keys=True,
+        if show_raw_payload:
+            typer.secho("  raw_payload:", fg=typer.colors.WHITE, bold=True)
+            typer.echo(
+                json.dumps(
+                    candidate.raw_payload,
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                )
             )
-        )
         typer.echo("")

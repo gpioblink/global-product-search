@@ -47,24 +47,27 @@ class BaseExtractor(ABC):
         url: str,
         *,
         note: str,
+        client: httpx.Client | None = None,
         params: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
         data: Any = None,
+        content: bytes | str | None = None,
         method: str = "GET",
     ) -> dict[str, Any]:
         logger.info("[%s] %s", self.name, note)
         if ctx.debug:
             logger.debug("[%s] %s %s", self.name, method.upper(), url)
 
-        client = httpx.Client()
+        http_client = client or httpx.Client()
         try:
             for attempt in range(3):
-                response = client.request(
+                response = http_client.request(
                     method=method.upper(),
                     url=url,
                     params=params,
                     headers=headers,
                     data=data,
+                    content=content,
                     timeout=10.0,
                 )
                 if response.status_code == 429 and attempt < 2:
@@ -88,7 +91,8 @@ class BaseExtractor(ABC):
             detail = exc.response.text
             raise RuntimeError(f"{self.name} API request failed: {detail}") from exc
         finally:
-            client.close()
+            if client is None:
+                http_client.close()
 
     @abstractmethod
     def supports(self, query: SearchQuery) -> int:
