@@ -118,3 +118,32 @@ def test_cli_search_shows_raw_payload_when_enabled(monkeypatch) -> None:
     assert result.exit_code == 0
     assert "raw_payload:" in result.stdout
     assert '"itemCaption": "Sample caption"' in result.stdout
+
+
+def test_cli_serve_starts_wsgi_server(monkeypatch) -> None:
+    events: list[tuple[str, object]] = []
+
+    class FakeServer:
+        def __enter__(self):
+            events.append(("enter", None))
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(("exit", None))
+            return False
+
+        def serve_forever(self):
+            events.append(("serve_forever", None))
+
+    def fake_make_server(host, port, app):
+        events.append(("make_server", (host, port, app)))
+        return FakeServer()
+
+    monkeypatch.setattr("global_product_search.cli.make_server", fake_make_server)
+
+    result = runner.invoke(app, ["serve", "--host", "0.0.0.0", "--port", "9000"])
+
+    assert result.exit_code == 0
+    assert "Serving API on http://0.0.0.0:9000" in result.stdout
+    assert "Routes: GET /extractors, GET /search?q=<query>&limit=10" in result.stdout
+    assert [event[0] for event in events] == ["make_server", "enter", "serve_forever", "exit"]

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import logging
+from wsgiref.simple_server import make_server
 
 import typer
 
+from .api import create_app
 from .engine import SearchEngine
 
 app = typer.Typer(add_completion=False, help="Global product search CLI.")
@@ -105,3 +107,22 @@ def search(
                 )
             )
         typer.echo("")
+
+
+@app.command()
+def serve(
+    ctx: typer.Context,
+    host: str = typer.Option("127.0.0.1", "--host", help="Bind host."),
+    port: int = typer.Option(8000, "--port", min=1, max=65535, help="Bind port."),
+) -> None:
+    engine = ctx.obj
+    assert isinstance(engine, SearchEngine)
+
+    typer.echo(f"Serving API on http://{host}:{port}")
+    typer.echo("Routes: GET /extractors, GET /search?q=<query>&limit=10")
+    api_app = create_app(engine=engine)
+    with make_server(host, port, api_app) as server:
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            typer.echo("Stopping API server.")

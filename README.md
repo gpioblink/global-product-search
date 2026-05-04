@@ -31,11 +31,31 @@ uv run gps search "4901234567894"
 uv run gps search "SM-S928B" --json
 uv run gps search "genre:books-doujin-technical 組み込みLinux"
 uv run gps search "genre:generic,books-general Raspberry Pi"
+uv run gps serve --host 127.0.0.1 --port 8000
 ```
 
 Genre directives can be placed at the beginning of the query with `genre:` or `genre=`.
 Use the category names exactly as you want the engine to match them, for example `generic`, `books-general`, `books-doujin-technical`, and `electronic-parts`.
 If no genre is specified, the engine defaults to `generic`.
+
+## Web API
+
+The CLI can also expose the same search capabilities over HTTP:
+
+```bash
+uv run gps serve --host 127.0.0.1 --port 8000
+curl 'http://127.0.0.1:8000/extractors'
+curl 'http://127.0.0.1:8000/search?q=SM-S928B&limit=5'
+curl 'http://127.0.0.1:8000/search?q=SM-S928B&include_raw_payload=false'
+```
+
+Available endpoints:
+
+- `GET /extractors` returns the extractor metadata shown by `--list-extractors`.
+- `GET /search?q=<query>&limit=10` returns the same candidate fields as `gps search --json`.
+- `GET /search?...&include_raw_payload=false` omits upstream payload blobs when you want a lighter response.
+
+If you want to embed the API in another WSGI server, import `global_product_search.create_app()`.
 
 ## Adding extractors
 

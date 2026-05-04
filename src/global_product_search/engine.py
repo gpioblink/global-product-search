@@ -72,6 +72,12 @@ DEFAULT_WEIGHT_RULES = [
         weight=15.0,
     ),
     ExtractorWeightRule(
+        name="prefer_specialized_books_api_for_book_queries",
+        extractor_flag_pattern=r"^channel:books-api$",
+        query_pattern=r"(?m)^(genre:books-general|isbn:(10|13)|product:book)$",
+        weight=20.0,
+    ),
+    ExtractorWeightRule(
         name="prefer_doujin_technical_book_sources_when_requested",
         extractor_flag_pattern=r"^domain:books-doujin-technical$",
         query_pattern=r"(?m)^genre:books-doujin-technical$",

@@ -1,5 +1,6 @@
 from .base import BaseExtractor, Extractor, ExtractorSelfTestCase
 from .rakuten import RakutenExtractor
+from .rakuten_books import RakutenBooksExtractor
 from .techbookfest import TechbookfestExtractor
 
 __all__ = [
@@ -7,5 +8,6 @@ __all__ = [
     "Extractor",
     "ExtractorSelfTestCase",
     "RakutenExtractor",
+    "RakutenBooksExtractor",
     "TechbookfestExtractor",
 ]
