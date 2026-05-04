@@ -1,0 +1,325 @@
+openapi: 3.1.0
+info:
+  title: global-product-search API
+  version: 0.1.0
+  description: HTTP interface that exposes the same search capabilities as the `gps` CLI.
+servers:
+  - url: http://127.0.0.1:8000
+    description: Local development server started by `uv run gps serve`
+tags:
+  - name: Meta
+  - name: Search
+paths:
+  /:
+    get:
+      tags: [Meta]
+      summary: Describe the API surface
+      operationId: getRoot
+      responses:
+        "200":
+          description: API metadata and endpoint hints.
+          headers:
+            Access-Control-Allow-Origin:
+              $ref: "#/components/headers/AccessControlAllowOrigin"
+            Access-Control-Allow-Methods:
+              $ref: "#/components/headers/AccessControlAllowMethods"
+            Access-Control-Allow-Headers:
+              $ref: "#/components/headers/AccessControlAllowHeaders"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RootResponse"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+    options:
+      tags: [Meta]
+      summary: CORS preflight for the API root
+      operationId: optionsRoot
+      responses:
+        "204":
+          $ref: "#/components/responses/NoContentCors"
+  /extractors:
+    get:
+      tags: [Meta]
+      summary: List available extractors
+      operationId: listExtractors
+      responses:
+        "200":
+          description: Extractor metadata equivalent to `gps --list-extractors`.
+          headers:
+            Access-Control-Allow-Origin:
+              $ref: "#/components/headers/AccessControlAllowOrigin"
+            Access-Control-Allow-Methods:
+              $ref: "#/components/headers/AccessControlAllowMethods"
+            Access-Control-Allow-Headers:
+              $ref: "#/components/headers/AccessControlAllowHeaders"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExtractorInfo"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+    options:
+      tags: [Meta]
+      summary: CORS preflight for the extractor list
+      operationId: optionsExtractors
+      responses:
+        "204":
+          $ref: "#/components/responses/NoContentCors"
+  /search:
+    get:
+      tags: [Search]
+      summary: Search products
+      description: Returns the same candidate structure as `gps search --json`.
+      operationId: searchProducts
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Primary search text. Either `q` or `text` must be provided.
+          schema:
+            type: string
+            minLength: 1
+        - name: text
+          in: query
+          required: false
+          description: Alias for `q`. Used only when `q` is absent.
+          schema:
+            type: string
+            minLength: 1
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of candidates to return.
+          schema:
+            type: integer
+            minimum: 1
+            default: 10
+        - name: include_raw_payload
+          in: query
+          required: false
+          description: Include upstream payload blobs in each candidate.
+          schema:
+            type: boolean
+            default: true
+      responses:
+        "200":
+          description: Search results.
+          headers:
+            Access-Control-Allow-Origin:
+              $ref: "#/components/headers/AccessControlAllowOrigin"
+            Access-Control-Allow-Methods:
+              $ref: "#/components/headers/AccessControlAllowMethods"
+            Access-Control-Allow-Headers:
+              $ref: "#/components/headers/AccessControlAllowHeaders"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProductCandidate"
+        "400":
+          description: Missing or invalid query parameters.
+          headers:
+            Access-Control-Allow-Origin:
+              $ref: "#/components/headers/AccessControlAllowOrigin"
+            Access-Control-Allow-Methods:
+              $ref: "#/components/headers/AccessControlAllowMethods"
+            Access-Control-Allow-Headers:
+              $ref: "#/components/headers/AccessControlAllowHeaders"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingQuery:
+                  value:
+                    detail: Missing required query parameter: q
+                invalidLimit:
+                  value:
+                    detail: Query parameter 'limit' must be an integer.
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+        "503":
+          description: Upstream extractor failed with a runtime error, such as missing credentials.
+          headers:
+            Access-Control-Allow-Origin:
+              $ref: "#/components/headers/AccessControlAllowOrigin"
+            Access-Control-Allow-Methods:
+              $ref: "#/components/headers/AccessControlAllowMethods"
+            Access-Control-Allow-Headers:
+              $ref: "#/components/headers/AccessControlAllowHeaders"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingCredentials:
+                  value:
+                    detail: missing credentials
+    options:
+      tags: [Search]
+      summary: CORS preflight for search
+      operationId: optionsSearch
+      responses:
+        "204":
+          $ref: "#/components/responses/NoContentCors"
+components:
+  headers:
+    AccessControlAllowOrigin:
+      description: Permissive CORS origin policy.
+      schema:
+        type: string
+        const: "*"
+    AccessControlAllowMethods:
+      description: Allowed methods for CORS requests.
+      schema:
+        type: string
+        const: GET, OPTIONS
+    AccessControlAllowHeaders:
+      description: Allowed request headers for CORS requests.
+      schema:
+        type: string
+        const: "*"
+    AllowGet:
+      description: Methods allowed for this resource.
+      schema:
+        type: string
+        const: GET
+  responses:
+    MethodNotAllowed:
+      description: Method not allowed for this route.
+      headers:
+        Allow:
+          $ref: "#/components/headers/AllowGet"
+        Access-Control-Allow-Origin:
+          $ref: "#/components/headers/AccessControlAllowOrigin"
+        Access-Control-Allow-Methods:
+          $ref: "#/components/headers/AccessControlAllowMethods"
+        Access-Control-Allow-Headers:
+          $ref: "#/components/headers/AccessControlAllowHeaders"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: Method not allowed.
+    NoContentCors:
+      description: Successful CORS preflight response.
+      headers:
+        Access-Control-Allow-Origin:
+          $ref: "#/components/headers/AccessControlAllowOrigin"
+        Access-Control-Allow-Methods:
+          $ref: "#/components/headers/AccessControlAllowMethods"
+        Access-Control-Allow-Headers:
+          $ref: "#/components/headers/AccessControlAllowHeaders"
+  schemas:
+    RootResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - endpoints
+      properties:
+        name:
+          type: string
+          const: global-product-search
+        endpoints:
+          type: object
+          additionalProperties: false
+          required:
+            - extractors
+            - search
+          properties:
+            extractors:
+              type: string
+              const: /extractors
+            search:
+              type: string
+              const: /search?q=<query>&limit=10&include_raw_payload=true
+    ExtractorInfo:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - genres
+        - flags
+      properties:
+        name:
+          type: string
+        genres:
+          type: array
+          items:
+            type: string
+        flags:
+          type: array
+          items:
+            type: string
+    ProductCandidate:
+      type: object
+      additionalProperties: false
+      required:
+        - source
+        - title
+        - url
+        - description
+        - price
+        - shop_name
+        - image_url
+        - brand
+        - model
+        - gtins
+        - score
+      properties:
+        source:
+          type: string
+        title:
+          type: string
+        url:
+          type: string
+          format: uri
+        description:
+          type:
+            - string
+            - "null"
+        price:
+          type:
+            - integer
+            - "null"
+        shop_name:
+          type:
+            - string
+            - "null"
+        image_url:
+          type:
+            - string
+            - "null"
+          format: uri
+        brand:
+          type:
+            - string
+            - "null"
+        model:
+          type:
+            - string
+            - "null"
+        gtins:
+          type: array
+          items:
+            type: string
+        score:
+          type: number
+        raw_payload:
+          type: object
+          additionalProperties: true
+          description: Present unless `include_raw_payload=false` is requested.
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - detail
+      properties:
+        detail:
+          type: string

@@ -56,6 +56,7 @@ Available endpoints:
 - `GET /search?...&include_raw_payload=false` omits upstream payload blobs when you want a lighter response.
 
 If you want to embed the API in another WSGI server, import `global_product_search.create_app()`.
+The OpenAPI document is available at [openapi.yaml](openapi.yaml).
 
 ## Adding extractors
 
