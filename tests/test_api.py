@@ -49,6 +49,13 @@ def test_api_lists_extractors() -> None:
     ]
 
 
+def test_api_advertises_strict_source_filter_capability() -> None:
+    with httpx.Client(transport=httpx.WSGITransport(app=create_app(engine=StubEngine())), base_url="http://testserver") as client:
+        response = client.get("/")
+    assert response.status_code == 200
+    assert "source_filter" in response.json()["capabilities"]
+
+
 def test_api_search_returns_results_without_raw_payload_when_disabled() -> None:
     client = httpx.Client(
         transport=httpx.WSGITransport(app=create_app(engine=StubEngine())),
@@ -128,3 +135,10 @@ def test_api_answers_cors_preflight() -> None:
     assert response.headers["access-control-allow-origin"] == "*"
     assert response.headers["access-control-allow-methods"] == "GET, OPTIONS"
     assert response.headers["access-control-allow-headers"] == "*"
+
+
+def test_api_rejects_unknown_sources_without_upstream_calls() -> None:
+    client = httpx.Client(transport=httpx.WSGITransport(app=create_app()), base_url="http://testserver")
+    response = client.get("/search", params={"q": "source:unknown Python"})
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Unknown source(s): unknown"}

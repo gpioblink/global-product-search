@@ -8,6 +8,7 @@ import typer
 
 from .api import create_app
 from .engine import SearchEngine
+from .query import InvalidQueryError
 
 app = typer.Typer(add_completion=False, help="Global product search CLI.")
 
@@ -60,7 +61,7 @@ def search(
     assert isinstance(engine, SearchEngine)
     try:
         results = engine.search_text(text, limit=limit)
-    except RuntimeError as exc:
+    except (RuntimeError, InvalidQueryError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
 
