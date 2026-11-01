@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Protocol
 from urllib.parse import parse_qs
 
@@ -22,17 +24,35 @@ class SearchApiEngine(Protocol):
     def search_text(self, text: str, *, limit: int = 10) -> list[ProductCandidate]: ...
 
 
-def create_app(*, engine: SearchApiEngine | None = None) -> "GlobalProductSearchApi":
+def create_app(
+    *, engine: SearchApiEngine | None = None, cors_origins: Sequence[str] | None = None,
+) -> "GlobalProductSearchApi":
     from .engine import SearchEngine
 
-    return GlobalProductSearchApi(engine=engine or SearchEngine())
+    if cors_origins is None:
+        cors_origins = os.getenv("GPS_CORS_ORIGINS", "*").split(",")
+    return GlobalProductSearchApi(engine=engine or SearchEngine(), cors_origins=cors_origins)
 
 
 class GlobalProductSearchApi:
-    def __init__(self, *, engine: SearchApiEngine) -> None:
+    def __init__(self, *, engine: SearchApiEngine, cors_origins: Sequence[str] = ("*",)) -> None:
         self.engine = engine
+        self.cors_origins = tuple(origin.strip() for origin in cors_origins if origin.strip())
 
     def __call__(self, environ: "WSGIEnvironment", start_response: "StartResponse") -> Iterable[bytes]:
+        original_start_response = start_response
+
+        def cors_start_response(status, headers, exc_info=None):
+            origin = environ.get("HTTP_ORIGIN")
+            if "*" in self.cors_origins:
+                headers.append(("Access-Control-Allow-Origin", "*"))
+            else:
+                headers.append(("Vary", "Origin"))
+                if origin in self.cors_origins:
+                    headers.append(("Access-Control-Allow-Origin", origin))
+            return original_start_response(status, headers, exc_info)
+
+        start_response = cors_start_response
         method = environ.get("REQUEST_METHOD", "GET").upper()
         path = environ.get("PATH_INFO", "") or "/"
 
@@ -153,7 +173,6 @@ class GlobalProductSearchApi:
         headers = [
             ("Content-Type", "application/json; charset=utf-8"),
             ("Content-Length", str(len(body))),
-            ("Access-Control-Allow-Origin", "*"),
             ("Access-Control-Allow-Methods", "GET, OPTIONS"),
             ("Access-Control-Allow-Headers", "*"),
         ]
@@ -165,7 +184,6 @@ class GlobalProductSearchApi:
     def _preflight_response(self, start_response: "StartResponse") -> Iterable[bytes]:
         headers = [
             ("Content-Length", "0"),
-            ("Access-Control-Allow-Origin", "*"),
             ("Access-Control-Allow-Methods", "GET, OPTIONS"),
             ("Access-Control-Allow-Headers", "*"),
         ]

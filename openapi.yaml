@@ -176,10 +176,9 @@ paths:
 components:
   headers:
     AccessControlAllowOrigin:
-      description: Permissive CORS origin policy.
+      description: Defaults to *; configurable using GPS_CORS_ORIGINS. Absent for disallowed origins.
       schema:
         type: string
-        const: "*"
     AccessControlAllowMethods:
       description: Allowed methods for CORS requests.
       schema:
@@ -300,8 +299,13 @@ components:
             - "null"
         price:
           type:
-            - integer
+            - number
             - "null"
+        currency:
+          type:
+            - string
+            - "null"
+          description: ISO currency code when supplied by the source. A missing value is unknown.
         shop_name:
           type:
             - string
