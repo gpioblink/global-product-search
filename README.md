@@ -38,6 +38,22 @@ Genre directives can be placed at the beginning of the query with `genre:` or `g
 Use the category names exactly as you want the engine to match them, for example `generic`, `books-general`, `books-doujin-technical`, and `electronic-parts`.
 If no genre is specified, the engine defaults to `generic`.
 
+To search only specific upstream sources, put `source:` or `source=` directives
+before the search text, using exact names from `gps --list-extractors` or
+`GET /extractors`:
+
+```bash
+uv run gps search "source:techbookfest genre:books-general Python"
+uv run gps search "source:rakuten,rakuten_books Python"
+```
+
+Explicit sources override genre routing. Repeated directives and comma-separated
+names select their union. The engine filters before scoring or calling upstream
+extractors, and never falls back to another source. Unknown names reject the whole
+request (HTTP 400); malformed or empty source directives also fail. No results
+returns `[]`; an upstream runtime failure with no results returns HTTP 503.
+Directives appearing after the first search token are literal search text.
+
 ## Web API
 
 The CLI can also expose the same search capabilities over HTTP:

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import logging
+import pytest
 
 from global_product_search.extractors.base import BaseExtractor
 from global_product_search.engine import ExtractorWeightRule, SearchEngine, search
 from global_product_search.models import ProductCandidate
+from global_product_search.query import InvalidQueryError
 
 
 def test_engine_returns_scored_results(monkeypatch) -> None:
@@ -271,3 +273,76 @@ def test_engine_logs_extractor_priority_breakdown_in_debug_mode(monkeypatch, cap
     assert "[engine] extractor=store" in caplog.text
     assert "base=80.0" in caplog.text
     assert "prefer_keyword_capable_extractors_for_keyword_queries:+15.0" in caplog.text
+
+
+def test_explicit_source_filters_before_scoring_and_overrides_genres(monkeypatch) -> None:
+    calls = []
+
+    class SelectedExtractor(BaseExtractor):
+        name = "selected"
+        genres = ("specialized",)
+
+        def supports(self, query):
+            calls.append("supports")
+            return 80
+
+        def search(self, query, ctx):
+            calls.append("search")
+            return [ProductCandidate(source=self.name, title="Python", url="https://example.com/1")]
+
+    class OtherExtractor(SelectedExtractor):
+        name = "other"
+        genres = ("generic",)
+
+        def supports(self, query):
+            pytest.fail("unrequested source was scored")
+
+        def search(self, query, ctx):
+            pytest.fail("unrequested source was called")
+
+    monkeypatch.setattr("global_product_search.engine.discover_extractors", lambda: [SelectedExtractor(), OtherExtractor()])
+    results = SearchEngine().search_text("source:selected genre:generic Python")
+    assert [result.source for result in results] == ["selected"]
+    assert calls == ["supports", "search"]
+
+
+def test_unknown_source_rejects_whole_request_before_scoring(monkeypatch) -> None:
+    class KnownExtractor(BaseExtractor):
+        name = "known"
+
+        def supports(self, query):
+            pytest.fail("unknown source must fail before scoring")
+
+        def search(self, query, ctx):
+            pytest.fail("unknown source must fail before search")
+
+    monkeypatch.setattr("global_product_search.engine.discover_extractors", lambda: [KnownExtractor()])
+    with pytest.raises(InvalidQueryError, match="Unknown source.*missing"):
+        SearchEngine().search_text("source:known,missing Python")
+
+
+@pytest.mark.parametrize("fail", [False, True])
+def test_explicit_source_never_falls_back_after_empty_or_failed_search(monkeypatch, fail) -> None:
+    class EmptyExtractor(BaseExtractor):
+        name = "selected"
+
+        def supports(self, query):
+            return 80
+
+        def search(self, query, ctx):
+            if fail:
+                raise RuntimeError("upstream unavailable")
+            return []
+
+    class OtherExtractor(EmptyExtractor):
+        name = "other"
+
+        def search(self, query, ctx):
+            pytest.fail("unrequested fallback was called")
+
+    monkeypatch.setattr("global_product_search.engine.discover_extractors", lambda: [EmptyExtractor(), OtherExtractor()])
+    if fail:
+        with pytest.raises(RuntimeError, match="upstream unavailable"):
+            SearchEngine().search_text("source:selected Python")
+    else:
+        assert SearchEngine().search_text("source:selected Python") == []

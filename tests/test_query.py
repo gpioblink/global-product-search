@@ -1,4 +1,6 @@
-from global_product_search.query import normalize_query
+import pytest
+
+from global_product_search.query import InvalidQueryError, normalize_query
 
 
 def test_normalize_query_detects_barcode() -> None:
@@ -38,3 +40,22 @@ def test_normalize_query_extracts_preferred_genres() -> None:
     assert query.preferred_genres == ["books-doujin-technical", "electronic-parts"]
     assert "genre:books-doujin-technical" in query.signals
     assert "genre:electronic-parts" in query.signals
+
+
+def test_leading_source_and_genre_directives_can_be_combined() -> None:
+    query = normalize_query("source:techbookfest genre:generic source=rakuten,techbookfest Python")
+    assert query.raw == "Python"
+    assert query.requested_sources == ["techbookfest", "rakuten"]
+    assert query.preferred_genres == ["generic"]
+
+
+def test_source_directives_after_text_are_literal() -> None:
+    query = normalize_query("Python source:techbookfest")
+    assert query.raw == "Python source:techbookfest"
+    assert query.requested_sources == []
+
+
+@pytest.mark.parametrize("text", ["source: Python", "source:a,,b Python", "source:techbookfest"])
+def test_invalid_source_directives_fail_closed(text: str) -> None:
+    with pytest.raises(InvalidQueryError):
+        normalize_query(text)

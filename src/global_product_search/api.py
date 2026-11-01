@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Protocol
 from urllib.parse import parse_qs
 
 from .models import ProductCandidate
+from .query import InvalidQueryError
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -80,7 +81,7 @@ class GlobalProductSearchApi:
                 return self._handle_search(environ, start_response)
 
             return self._json_response(start_response, 404, {"detail": "Not found."})
-        except BadRequestError as exc:
+        except (BadRequestError, InvalidQueryError) as exc:
             return self._json_response(start_response, 400, {"detail": str(exc)})
         except RuntimeError as exc:
             return self._json_response(start_response, 503, {"detail": str(exc)})

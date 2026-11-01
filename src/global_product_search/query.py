@@ -9,25 +9,36 @@ MODEL_PATTERN = re.compile(r"^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9][A-Za-z0-9\-_/+.(
 DEFAULT_PREFERRED_GENRES = ["generic"]
 
 
+class InvalidQueryError(ValueError):
+    """A query control directive cannot be satisfied safely."""
+
+
 def normalize_query(text: str) -> SearchQuery:
     raw_input = text.strip()
     preferred_genres: list[str] = []
+    requested_sources: list[str] = []
     content_parts: list[str] = []
     for part in raw_input.split():
-        # Treat only the leading genre directives as control syntax.
+        # Treat only leading directives as control syntax.
         # Once the actual query text starts, keep the remaining tokens verbatim.
-        if content_parts or (not part.startswith("genre:") and not part.startswith("genre=")):
+        directive = re.match(r"^(genre|source)[:=](.*)$", part)
+        if content_parts or directive is None:
             content_parts.append(part)
             continue
 
-        if part.startswith("genre:"):
-            raw_genre_value = part.removeprefix("genre:")
+        kind, value = directive.groups()
+        values = value.split(",")
+        if kind == "source":
+            if any(not re.fullmatch(r"[A-Za-z0-9_-]+", source) for source in values):
+                raise InvalidQueryError("Source directives require comma-separated extractor names.")
+            requested_sources.extend(source for source in values if source not in requested_sources)
         else:
-            raw_genre_value = part.removeprefix("genre=")
-        for raw_genre in raw_genre_value.split(","):
-            genre = raw_genre.strip()
-            if genre and genre not in preferred_genres:
-                preferred_genres.append(genre)
+            for genre in values:
+                if genre and genre not in preferred_genres:
+                    preferred_genres.append(genre)
+
+    if requested_sources and not content_parts:
+        raise InvalidQueryError("Source directives must be followed by search text.")
 
     # When the user does not request a genre explicitly, keep the search
     # conservative and stay within general stores by default.
@@ -57,6 +68,7 @@ def normalize_query(text: str) -> SearchQuery:
                     normalized=[compact_digits],
                     signals=signals,
                     preferred_genres=preferred_genres,
+                    requested_sources=requested_sources,
                 )
 
         if len(compact_digits) in BARCODE_LENGTHS:
@@ -84,6 +96,7 @@ def normalize_query(text: str) -> SearchQuery:
                 normalized=[compact_digits],
                 signals=signals,
                 preferred_genres=preferred_genres,
+                requested_sources=requested_sources,
             )
 
     if MODEL_PATTERN.match(raw):
@@ -99,6 +112,7 @@ def normalize_query(text: str) -> SearchQuery:
             normalized=normalized,
             signals=["kind:model", *[f"genre:{genre}" for genre in preferred_genres]],
             preferred_genres=preferred_genres,
+            requested_sources=requested_sources,
         )
 
     # Everything else is treated as free text. Preserve the raw phrase and a
@@ -111,4 +125,5 @@ def normalize_query(text: str) -> SearchQuery:
         normalized=normalized or [raw],
         signals=["kind:keyword", *[f"genre:{genre}" for genre in preferred_genres]],
         preferred_genres=preferred_genres,
+        requested_sources=requested_sources,
     )

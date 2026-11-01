@@ -78,7 +78,14 @@ paths:
         - name: q
           in: query
           required: false
-          description: Primary search text. Either `q` or `text` must be provided.
+          description: >-
+            Primary search text. Either `q` or `text` must be provided. Leading
+            source:name or source=name directives restrict upstream extractors
+            using exact names from /extractors. Comma lists and repeated directives
+            select their union and override genre routing. Unknown or malformed
+            sources return 400 before any upstream call; no unrequested source is
+            used as a fallback. Leading genre:name directives otherwise retain
+            normal genre routing. Directives after search text are literal.
           schema:
             type: string
             minLength: 1

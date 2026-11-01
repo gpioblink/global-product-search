@@ -8,7 +8,7 @@ from .context import SearchContext
 from .extractors.base import Extractor
 from .loader import discover_extractors
 from .models import ProductCandidate, SearchQuery
-from .query import normalize_query
+from .query import InvalidQueryError, normalize_query
 
 logger = logging.getLogger(__name__)
 
@@ -130,11 +130,20 @@ class SearchEngine:
     def search_query(self, query: SearchQuery, *, limit: int = 10) -> list[ProductCandidate]:
         ctx = SearchContext.from_env(limit=limit, debug=self.debug)
         requested_genres = set(query.preferred_genres)
-        available = [
-            extractor
-            for extractor in discover_extractors()
-            if not getattr(extractor, "genres", ()) or requested_genres.intersection(extractor.genres)
-        ]
+        discovered = discover_extractors()
+        if query.requested_sources:
+            known_sources = {extractor.name for extractor in discovered}
+            unknown = sorted(set(query.requested_sources) - known_sources)
+            if unknown:
+                raise InvalidQueryError(f"Unknown source(s): {', '.join(unknown)}")
+            # Explicit source selection takes precedence over genre routing.
+            # Filter before supports() or search() can contact any upstream.
+            available = [e for e in discovered if e.name in query.requested_sources]
+        else:
+            available = [
+                e for e in discovered
+                if not getattr(e, "genres", ()) or requested_genres.intersection(e.genres)
+            ]
         query_context = "\n".join(
             [
                 f"raw:{query.raw}",
@@ -185,6 +194,8 @@ class SearchEngine:
                 logger.warning("Extractor %s failed: %s", extractor.name, exc)
                 continue
             for index, candidate in enumerate(extracted):
+                if query.requested_sources and candidate.source not in query.requested_sources:
+                    continue
                 title = candidate.title.casefold()
                 caption = ""
                 item_caption = candidate.raw_payload.get("itemCaption")

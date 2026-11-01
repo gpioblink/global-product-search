@@ -128,3 +128,10 @@ def test_api_answers_cors_preflight() -> None:
     assert response.headers["access-control-allow-origin"] == "*"
     assert response.headers["access-control-allow-methods"] == "GET, OPTIONS"
     assert response.headers["access-control-allow-headers"] == "*"
+
+
+def test_api_rejects_unknown_sources_without_upstream_calls() -> None:
+    client = httpx.Client(transport=httpx.WSGITransport(app=create_app()), base_url="http://testserver")
+    response = client.get("/search", params={"q": "source:unknown Python"})
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Unknown source(s): unknown"}
