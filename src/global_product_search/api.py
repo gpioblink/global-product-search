@@ -53,6 +53,7 @@ class GlobalProductSearchApi:
                     200,
                     {
                         "name": "global-product-search",
+                        "capabilities": ["source_filter"],
                         "endpoints": {
                             "extractors": "/extractors",
                             "search": "/search?q=<query>&limit=10&include_raw_payload=true",

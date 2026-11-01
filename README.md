@@ -53,6 +53,8 @@ extractors, and never falls back to another source. Unknown names reject the who
 request (HTTP 400); malformed or empty source directives also fail. No results
 returns `[]`; an upstream runtime failure with no results returns HTTP 503.
 Directives appearing after the first search token are literal search text.
+`GET /` advertises `capabilities: ["source_filter"]`; clients that require strict
+scoping should check that capability before sending a source directive to older servers.
 
 ## Web API
 

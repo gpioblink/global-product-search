@@ -233,6 +233,13 @@ components:
         name:
           type: string
           const: global-product-search
+        capabilities:
+          type: array
+          description: Optional feature names supported by this server.
+          items:
+            type: string
+          examples:
+            - [source_filter]
         endpoints:
           type: object
           additionalProperties: false

@@ -49,6 +49,13 @@ def test_api_lists_extractors() -> None:
     ]
 
 
+def test_api_advertises_strict_source_filter_capability() -> None:
+    with httpx.Client(transport=httpx.WSGITransport(app=create_app(engine=StubEngine())), base_url="http://testserver") as client:
+        response = client.get("/")
+    assert response.status_code == 200
+    assert "source_filter" in response.json()["capabilities"]
+
+
 def test_api_search_returns_results_without_raw_payload_when_disabled() -> None:
     client = httpx.Client(
         transport=httpx.WSGITransport(app=create_app(engine=StubEngine())),
