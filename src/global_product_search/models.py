@@ -21,7 +21,8 @@ class ProductCandidate(BaseModel):
     title: str
     url: str
     description: str | None = None
-    price: int | None = None
+    price: int | float | None = None
+    currency: str | None = None
     shop_name: str | None = None
     image_url: str | None = None
     brand: str | None = None

@@ -33,6 +33,7 @@ def _iter_extractor_cases() -> list[ExtractorCase]:
     _iter_extractor_cases(),
     ids=lambda extractor_case: f"{extractor_case.extractor.name}:{extractor_case.case.name}",
 )
+@pytest.mark.skipif(os.getenv("GPS_RUN_LIVE_TESTS") != "1", reason="set GPS_RUN_LIVE_TESTS=1 for upstream smoke tests")
 def test_builtin_extractor_test_case(extractor_case: ExtractorCase) -> None:
     extractor = extractor_case.extractor
     case = extractor_case.case
@@ -41,7 +42,7 @@ def test_builtin_extractor_test_case(extractor_case: ExtractorCase) -> None:
         pytest.skip(case.skip)
     missing_env = [key for key in case.requires_env if not os.getenv(key)]
     if missing_env:
-        pytest.fail(f"missing required environment variables: {', '.join(missing_env)}")
+        pytest.skip(f"missing required environment variables: {', '.join(missing_env)}")
 
     results = extractor.search(normalize_query(case.query), SearchContext(limit=10))
 

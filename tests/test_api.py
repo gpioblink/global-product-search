@@ -142,3 +142,25 @@ def test_api_rejects_unknown_sources_without_upstream_calls() -> None:
     response = client.get("/search", params={"q": "source:unknown Python"})
     assert response.status_code == 400
     assert response.json() == {"detail": "Unknown source(s): unknown"}
+
+
+def test_cors_allowlist_applies_to_success_errors_and_preflight() -> None:
+    app = create_app(engine=StubEngine(), cors_origins=["https://example.com"])
+    with httpx.Client(transport=httpx.WSGITransport(app=app), base_url="http://testserver") as client:
+        for method, path in [("GET", "/extractors"), ("GET", "/missing"), ("GET", "/search"), ("OPTIONS", "/search")]:
+            allowed = client.request(method, path, headers={"Origin": "https://example.com"})
+            assert allowed.headers["access-control-allow-origin"] == "https://example.com"
+            assert allowed.headers["vary"] == "Origin"
+            assert "access-control-allow-credentials" not in allowed.headers
+            denied = client.request(method, path, headers={"Origin": "https://other.example"})
+            assert "access-control-allow-origin" not in denied.headers
+            assert denied.headers["vary"] == "Origin"
+
+
+def test_cors_can_be_configured_from_environment_or_disabled(monkeypatch) -> None:
+    monkeypatch.setenv("GPS_CORS_ORIGINS", "https://example.com,https://other.example")
+    with httpx.Client(transport=httpx.WSGITransport(app=create_app(engine=StubEngine())), base_url="http://testserver") as client:
+        assert client.get("/", headers={"Origin": "https://other.example"}).headers["access-control-allow-origin"] == "https://other.example"
+    monkeypatch.setenv("GPS_CORS_ORIGINS", "")
+    with httpx.Client(transport=httpx.WSGITransport(app=create_app(engine=StubEngine())), base_url="http://testserver") as client:
+        assert "access-control-allow-origin" not in client.get("/", headers={"Origin": "https://example.com"}).headers
